@@ -5,4 +5,4 @@ Please be carefull to not block youself!
 
 crontab suggestion:
 
-`*/5 * * * * python3 /root/postfix-sasl-ip-range/ip_range_blocker.py`
+`*/5 * * * * /usr/bin/python3 /usr/bin/fail2ban-block-ip-range.py`
