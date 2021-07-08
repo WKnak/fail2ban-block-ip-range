@@ -12,6 +12,7 @@ from collections import defaultdict
 # 1.3) the IP result list is output to /tmp
 
 script = 'tail -n 1000 /var/log/fail2ban.log | grep -E "fail2ban.filter.*\[[0-9]+\]:.*\[[^]]+\] Found ([0-9]{1,3}\.){3}[0-9]{1,3}" -o | sed -re "s/fail2ban.filter\s+\[[0-9]+\]:\sINFO\s+\[//; s/\]//; s/Found //;" | sort | uniq -c > /tmp/top-ip-ranges'
+countLimit = 7
 
 call(script, shell=True)
 
@@ -67,7 +68,7 @@ for line in Lines:
             continue
 
     # 3.4 if netIndex is set and maxCount is above 10, add range to list
-    if(netIndex and maxCount > 10):
+    if(netIndex and maxCount > countLimit):
       finalList[jail][netIndex] = maxCount
 
 #
