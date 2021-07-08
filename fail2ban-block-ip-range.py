@@ -4,6 +4,8 @@ from pprint import pprint
 from subprocess import call
 from ipaddress import IPv4Network
 from collections import defaultdict
+from tempfile import mkstemp
+import os
 
 # PART 1: system script call, filtering messages and IPs
 #
@@ -11,7 +13,11 @@ from collections import defaultdict
 # 1.2) then it egreps the IPs, sort and uniq and count, and sort again.
 # 1.3) the IP result list is output to /tmp
 
-script = 'tail -n 1000 /var/log/fail2ban.log | grep -E "fail2ban.filter.*\[[0-9]+\]:.*\[[^]]+\] Found ([0-9]{1,3}\.){3}[0-9]{1,3}" -o | sed -re "s/fail2ban.filter\s+\[[0-9]+\]:\sINFO\s+\[//; s/\]//; s/Found //;" | sort | uniq -c > /tmp/top-ip-ranges'
+# Create temporary file, close it and let shell command write into it
+tmpf = mkstemp()
+os.close(tmpf[0])
+
+script = 'tail -n 1000 /var/log/fail2ban.log | grep -E "fail2ban.filter.*\[[0-9]+\]:.*\[[^]]+\] Found ([0-9]{1,3}\.){3}[0-9]{1,3}" -o | sed -re "s/fail2ban.filter\s+\[[0-9]+\]:\sINFO\s+\[//; s/\]//; s/Found //;" | sort | uniq -c > ' + tmpf[1]
 countLimit = 7
 
 call(script, shell=True)
@@ -19,7 +25,7 @@ call(script, shell=True)
 #
 # PART 2: reads the ip list detected and iterate:
 #
-file1 = open('/tmp/top-ip-ranges', 'r')
+file1 = open(tmpf[1], 'r')
 Lines = file1.readlines()
 
 mylist = defaultdict(lambda: defaultdict(int))
@@ -70,6 +76,9 @@ for line in Lines:
     # 3.4 if netIndex is set and maxCount is above 10, add range to list
     if(netIndex and maxCount > countLimit):
       finalList[jail][netIndex] = maxCount
+
+# delete temporary file
+os.remove(tmpf[1])
 
 #
 # PART 4: call fail2ban  (you can also call IPTABLES directly)
