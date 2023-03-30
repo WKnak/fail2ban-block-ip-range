@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from pprint import pprint
-from subprocess import call
+from subprocess import run,DEVNULL
 from ipaddress import IPv4Network
 from collections import defaultdict
 from tempfile import mkstemp
@@ -20,7 +20,7 @@ os.close(tmpf[0])
 script = 'tail -n 1000 /var/log/fail2ban.log | grep -E "fail2ban.filter.*\[[0-9]+\]:.*\[[^]]+\] Found ([0-9]{1,3}\.){3}[0-9]{1,3}" -o | sed -re "s/fail2ban.filter\s+\[[0-9]+\]:\sINFO\s+\[//; s/\]//; s/Found //;" | sort | uniq -c > ' + tmpf[1]
 countLimit = 7
 
-call(script, shell=True)
+run(script, shell=True)
 
 #
 # PART 2: reads the ip list detected and iterate:
@@ -89,4 +89,4 @@ for jail in finalList:
     for ip in finalList[jail]:
         banIP_command = fail2ban_command.format(jail, ip)
         #print(banIP_command)
-        call(banIP_command, shell=True)
+        run(banIP_command, stdout=DEVNULL, shell=True)
