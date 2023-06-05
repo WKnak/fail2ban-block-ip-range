@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
 from pprint import pprint
-from subprocess import call
 from ipaddress import IPv4Network
 from collections import defaultdict
 from tempfile import mkstemp
+import subprocess
 import os
 
 # PART 1: system script call, filtering messages and IPs
@@ -20,7 +20,7 @@ os.close(tmpf[0])
 script = 'tail -n 1000 /var/log/fail2ban.log | grep -E "fail2ban.filter.*\[[0-9]+\]:.*\[[^]]+\] Found ([0-9]{1,3}\.){3}[0-9]{1,3}" -o | sed -re "s/fail2ban.filter\s+\[[0-9]+\]:\sINFO\s+\[//; s/\]//; s/Found //;" | sort | uniq -c > ' + tmpf[1]
 countLimit = 7
 
-call(script, shell=True)
+subprocess.call(script, shell=True)
 
 #
 # PART 2: reads the ip list detected and iterate:
@@ -83,18 +83,18 @@ os.remove(tmpf[1])
 #
 # PART 4: call fail2ban  (you can also call IPTABLES directly)
 #
+
 fail2ban_command = "fail2ban-client set {} banip {}"
 fail2ban_get     = "fail2ban-client get {} banned {}"
 
-for jail in finalList:
-    for ip in finalList[jail]:         
+for jail in finalList:                 
+    for ip in finalList[jail]:  
         getban_command = fail2ban_get.format(jail, ip)
-        banned = call(getban_command, shell=True)
-        #print(getban_command)
+        banned = subprocess.getoutput(getban_command)
         if banned == "0":
             banIP_command = fail2ban_command.format(jail, ip)
-            #print(banIP_command)  
-            call(banIP_command, shell=True)
+            #print(banIP_command) 
+            subprocess.call(banIP_command, shell=True)
         #else:
-            #print("ip allready banned")
-
+        #    print("ip allready banned")
+	
