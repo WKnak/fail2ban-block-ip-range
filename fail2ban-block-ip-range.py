@@ -84,9 +84,17 @@ os.remove(tmpf[1])
 # PART 4: call fail2ban  (you can also call IPTABLES directly)
 #
 fail2ban_command = "fail2ban-client set {} banip {}"
+fail2ban_get     = "fail2ban-client get {} banned {}"
 
 for jail in finalList:
-    for ip in finalList[jail]:
-        banIP_command = fail2ban_command.format(jail, ip)
-        #print(banIP_command)
-        call(banIP_command, shell=True)
+    for ip in finalList[jail]:         
+        getban_command = fail2ban_get.format(jail, ip)
+        banned = call(getban_command, shell=True)
+        #print(getban_command)
+        if banned == "0":
+            banIP_command = fail2ban_command.format(jail, ip)
+            #print(banIP_command)  
+            call(banIP_command, shell=True)
+        #else:
+            #print("ip allready banned")
+
