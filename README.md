@@ -3,10 +3,48 @@ A python script that group IPs into network range, to block attacks from a netwo
 
 Please be carefull to not block youself!
 
-crontab suggestion:
+## Installation
+
+### Script
+
+- Copy script into directory `/usr/bin/`
+- Make it executable by `chmod a+x /usr/bin/fail2ban-block-ip-range.py`
+
+### Regular execution
+
+#### By cron
+
+##### Alternative 1: extension of /etc/crontab
+
+Add following extension to `/etc/crontab`
 
 `*/5 * * * * /usr/bin/fail2ban-block-ip-range.py`
 
+##### Alternative 2: sniplet in /etc/cron.d/fail2ban-block-ip-range
+
+`*/5 * * * * root /usr/bin/fail2ban-block-ip-range.py`
+
+##### Common:
+
+- watch output of cron log (usually `/var/log/cron`)
+- watch e-mails sent to root (in case of script send something to stdout/stderr)
+
+#### By systemd/timer
+
+- Store unit files into /usr/lib/systemd/system/
+- Reload systemd with `systemctl daemon-reload`
+- Run a one-shot for testinger with `systemctl enable fail2ban-block-ip-range.timer`
+- Check journald with `journalctl -b 0 -u fail2ban-block-ip-range.service`
+- Enable the timer with `systemctl enable fail2ban-block-ip-range.timer`
+- Check journald with `journalctl -b 0 -u fail2ban-block-ip-range.timer`
+
+Note: output of the script to stdout/stderr will be logged to journald
+
+### SELinux
+
+Active SELinux can prevent the script from being executed by cron/systemd!
+
+Solution: toggle SELinux to run in permissive mode and create from all the logged events then a policy extension.
 
 ## Example:
 
