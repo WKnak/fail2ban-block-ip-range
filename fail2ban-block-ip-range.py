@@ -6,6 +6,19 @@ from collections import defaultdict
 from tempfile import mkstemp
 import subprocess
 import os
+import argparse
+
+parser = argparse.ArgumentParser(
+                    prog='fail2ban-block-ip-range.py',
+                    description='Scan /var/log/fail2ban.log and aggregate single banned IPs into banned networks')
+
+parser.add_argument('-v', '--verbose',
+                    action='store_true')  # on/off flag
+
+parser.add_argument('-q', '--quiet',
+                    action='store_true')  # on/off flag
+
+args = parser.parse_args()
 
 # PART 1: system script call, filtering messages and IPs
 #
@@ -94,8 +107,12 @@ for jail in finalList:
         banned = subprocess.getoutput(getban_command)
         if banned == "0":
             banIP_command = fail2ban_command.format(jail, ip)
-            #print(banIP_command) 
-            subprocess.call(banIP_command, shell=True)
-        #else:
-        #    print("ip allready banned")
-	
+            result = subprocess.getoutput(banIP_command)
+            if result == "1":
+                if (not args.quiet):
+                    print("jail " + jail + " successful ban aggregated IP network: " + ip)
+            else:
+                print("jail " + jail + " unsuccessful try to ban aggregated IP network: " + ip + " (result: " + result + ")")
+        else:
+            if (args.verbose):
+                print("jail " + jail + " aggregated IP network already banned: " + ip)
