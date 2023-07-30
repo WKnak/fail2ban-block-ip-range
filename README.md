@@ -51,7 +51,6 @@ Solution: toggle SELinux to run in permissive mode and create from all the logge
 Count and IPs found at last 1k lines of fail2ban.log
 
 ```
-    151 sshd 193.56.28.160
     108 postfix-sasl 45.142.120.135
     107 postfix-sasl 45.142.120.62
     105 postfix-sasl 45.142.120.99
@@ -74,7 +73,6 @@ Count and IPs found at last 1k lines of fail2ban.log
      76 postfix-sasl 45.142.120.34
      76 postfix-sasl 45.142.120.138
      73 postfix-sasl 45.142.120.65
-     60 courier-auth 78.128.113.66
       6 apache-auth 45.150.206.113
       3 postfix-sasl 123.30.50.91
       2 sshd 5.188.206.204
@@ -87,8 +85,6 @@ Count and IPs found at last 1k lines of fail2ban.log
 Resulting blocked IP and IP Ranges (above 10 events):
 
 ```
-fail2ban-client set courier-auth banip 78.128.113.66/32
 fail2ban-client set postfix-sasl banip 45.142.120.0/24
-fail2ban-client set sshd banip 193.56.28.160/32
 fail2ban-client set apache-auth banip 45.150.206.112/29
 ```
