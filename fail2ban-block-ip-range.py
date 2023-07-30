@@ -73,9 +73,10 @@ for line in Lines:
             # found good network
             continue
 
-    # 3.4 if netIndex is set and maxCount is above 10, add range to list
+    # 3.4 if netIndex is set and maxCount is above limit, add range to list
     if(netIndex and maxCount > countLimit):
-      finalList[jail][netIndex] = maxCount
+      if not netIndex.endswith("/32"):
+        finalList[jail][netIndex] = maxCount
 
 # delete temporary file
 os.remove(tmpf[1])
