@@ -1,0 +1,15 @@
+[Unit]
+Description=fail2ban block IP range / run every 5 min fail2ban-block-ip-range.service
+
+# run only if main service is running
+PartOf=fail2ban.service
+After=fail2ban.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target fail2ban.service
