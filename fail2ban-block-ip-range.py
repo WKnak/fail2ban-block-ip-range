@@ -5,7 +5,21 @@ from subprocess import run,DEVNULL
 from ipaddress import IPv4Network
 from collections import defaultdict
 from tempfile import mkstemp
+import subprocess
 import os
+import argparse
+
+parser = argparse.ArgumentParser(
+                    prog='fail2ban-block-ip-range.py',
+                    description='Scan /var/log/fail2ban.log and aggregate single banned IPs into banned networks')
+
+parser.add_argument('-v', '--verbose',
+                    action='store_true')  # on/off flag
+
+parser.add_argument('-q', '--quiet',
+                    action='store_true')  # on/off flag
+
+args = parser.parse_args()
 
 # PART 1: system script call, filtering messages and IPs
 #
@@ -73,9 +87,10 @@ for line in Lines:
             # found good network
             continue
 
-    # 3.4 if netIndex is set and maxCount is above 10, add range to list
+    # 3.4 if netIndex is set and maxCount is above limit, add range to list
     if(netIndex and maxCount > countLimit):
-      finalList[jail][netIndex] = maxCount
+      if not netIndex.endswith("/32"):
+        finalList[jail][netIndex] = maxCount
 
 # delete temporary file
 os.remove(tmpf[1])
@@ -83,10 +98,22 @@ os.remove(tmpf[1])
 #
 # PART 4: call fail2ban  (you can also call IPTABLES directly)
 #
-fail2ban_command = "fail2ban-client set {} banip {}"
 
-for jail in finalList:
-    for ip in finalList[jail]:
-        banIP_command = fail2ban_command.format(jail, ip)
-        #print(banIP_command)
-        run(banIP_command, stdout=DEVNULL, shell=True)
+fail2ban_command = "fail2ban-client set {} banip {}"
+fail2ban_get     = "fail2ban-client get {} banned {}"
+
+for jail in finalList:                 
+    for ip in finalList[jail]:  
+        getban_command = fail2ban_get.format(jail, ip)
+        banned = subprocess.getoutput(getban_command)
+        if banned == "0":
+            banIP_command = fail2ban_command.format(jail, ip)
+            result = run(banIP_command, shell=True)
+            if result == "1":
+                if (not args.quiet):
+                    print("jail " + jail + " successful ban aggregated IP network: " + ip)
+            else:
+                print("jail " + jail + " unsuccessful try to ban aggregated IP network: " + ip + " (result: " + result + ")")
+        else:
+            if (args.verbose):
+                print("jail " + jail + " aggregated IP network already banned: " + ip)        

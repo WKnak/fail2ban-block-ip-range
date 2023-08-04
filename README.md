@@ -1,19 +1,56 @@
-# fail2ban block ip/network range
+# fail2ban block ip/network range (ipv4 only)
 A python script that group IPs into network range, to block attacks from a network range address, from CIDR /23 up to /31.
 
 Please be carefull to not block youself!
 
-crontab suggestion:
+## Installation
+
+### Script
+
+- Copy script into directory `/usr/bin/`
+- Make it executable by `chmod a+x /usr/bin/fail2ban-block-ip-range.py`
+
+### Regular execution
+
+#### By cron
+
+##### Alternative 1: extension of /etc/crontab
+
+Add following extension to `/etc/crontab`
 
 `*/5 * * * * /usr/bin/fail2ban-block-ip-range.py`
 
+##### Alternative 2: sniplet in /etc/cron.d/fail2ban-block-ip-range
+
+`*/5 * * * * root /usr/bin/fail2ban-block-ip-range.py`
+
+##### Common:
+
+- watch output of cron log (usually `/var/log/cron`)
+- watch e-mails sent to root (in case of script send something to stdout/stderr)
+
+#### By systemd/timer
+
+- Store unit files into /usr/lib/systemd/system/
+- Reload systemd with `systemctl daemon-reload`
+- Run a one-shot for testinger with `systemctl enable fail2ban-block-ip-range.timer`
+- Check journald with `journalctl -b 0 -u fail2ban-block-ip-range.service`
+- Enable the timer with `systemctl enable fail2ban-block-ip-range.timer`
+- Check journald with `journalctl -b 0 -u fail2ban-block-ip-range.timer`
+
+Note: output of the script to stdout/stderr will be logged to journald
+
+### SELinux
+
+Active SELinux can prevent the script from being executed by cron/systemd!
+
+Solution: toggle SELinux to run in permissive mode and create from all the logged events then a policy extension.
 
 ## Example:
 
 Count and IPs found at last 1k lines of fail2ban.log
 
 ```
-    151 sshd 193.56.28.160
     108 postfix-sasl 45.142.120.135
     107 postfix-sasl 45.142.120.62
     105 postfix-sasl 45.142.120.99
@@ -36,7 +73,6 @@ Count and IPs found at last 1k lines of fail2ban.log
      76 postfix-sasl 45.142.120.34
      76 postfix-sasl 45.142.120.138
      73 postfix-sasl 45.142.120.65
-     60 courier-auth 78.128.113.66
       6 apache-auth 45.150.206.113
       3 postfix-sasl 123.30.50.91
       2 sshd 5.188.206.204
@@ -49,8 +85,6 @@ Count and IPs found at last 1k lines of fail2ban.log
 Resulting blocked IP and IP Ranges (above 10 events):
 
 ```
-fail2ban-client set courier-auth banip 78.128.113.66/32
 fail2ban-client set postfix-sasl banip 45.142.120.0/24
-fail2ban-client set sshd banip 193.56.28.160/32
 fail2ban-client set apache-auth banip 45.150.206.112/29
 ```
