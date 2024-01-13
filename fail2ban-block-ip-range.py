@@ -108,12 +108,12 @@ for jail in finalList:
         banned = subprocess.getoutput(getban_command)
         if banned == "0":
             banIP_command = fail2ban_command.format(jail, ip)
-            result = run(banIP_command, shell=True)
-            if result == "1":
+            result = run(banIP_command, shell=True, capture_output=True)
+            if result.returncode == 0:
                 if (not args.quiet):
                     print("jail " + jail + " successful ban aggregated IP network: " + ip)
             else:
-                print("jail " + jail + " unsuccessful try to ban aggregated IP network: " + ip + " (result: " + result + ")")
+                print("jail " + jail + " unsuccessful try to ban aggregated IP network: " + ip + " (result: " + result.returncode + ")")
         else:
             if (args.verbose):
                 print("jail " + jail + " aggregated IP network already banned: " + ip)        
