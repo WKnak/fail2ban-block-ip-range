@@ -20,8 +20,7 @@ Group:     Unspecified
 Requires:  fail2ban
 %{?systemd_requires}
 
-BuildRequires:    checkpolicy
-BuildRequires:    selinux-policy-devel
+BuildRequires:    systemd
 
 
 %if 0%{?gitcommit:1}
