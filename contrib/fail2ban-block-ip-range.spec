@@ -20,7 +20,7 @@ Group:     Unspecified
 Requires:  fail2ban
 %{?systemd_requires}
 
-BuildRequires:    systemd
+BuildRequires: systemd-rpm-macros
 
 
 %if 0%{?gitcommit:1}
