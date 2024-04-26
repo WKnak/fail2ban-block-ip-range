@@ -118,7 +118,7 @@ if args.debug:
     pprint(mylist)
 
 #
-# PART 3:  iterate IPs again, and get the best choice network range
+# PART 3: iterate IPs again, and get the best choice network range
 #
 for jail in myjailip:
     for ip in myjailip[jail]:
