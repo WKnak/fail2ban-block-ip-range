@@ -63,6 +63,10 @@ if not os.path.isfile(fail2ban_log_file):
     print(f"File not found: {fail2ban_log_file}")
     exit(1)        
 
+if args.debug:
+    print(f"Logfile to analyze: {fail2ban_log_file}")
+    print(f"Count limit: {countLimit}")
+
 file = open(fail2ban_log_file, mode='r')
 
 fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).* fail2ban.filter.*\[[0-9]+\]:.*\[([^]]+)\] Found ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})")
@@ -70,6 +74,16 @@ fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2
 myjailip = defaultdict(lambda: defaultdict(int))
 mylist = defaultdict(lambda: defaultdict(int))
 finalList = defaultdict(lambda: defaultdict(int))
+
+
+##### Functions
+def printdict(var):
+    for jail in var:
+        print(f" jail '{jail}'")
+        for ip in var[jail]:
+            count = var[jail][ip]
+            print(f"  {ip}: {count}")
+
 
 # PART 1: filtering messages and IPs
 #
@@ -96,6 +110,7 @@ while True:
 
         if args.debug:
             print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> STORE")
+
         myjailip[jail][ip] += 1
 
         # 2.2) iterate from cidr/32 down to 23 (descending)
@@ -113,9 +128,9 @@ file.close()
 
 if args.debug:
     print(f"List per jail/ip:")
-    pprint(myjailip)
+    printdict(myjailip)
     print(f"List per jail/index:")
-    pprint(mylist)
+    printdict(mylist)
 
 #
 # PART 3: iterate IPs again, and get the best choice network range
@@ -140,13 +155,20 @@ for jail in myjailip:
                 continue
 
         # 3.4 if netIndex is set and maxCount is above the limit, add range to list
-        if netIndex and maxCount > countLimit:
+        if netIndex:
             if not netIndex.endswith("/32"):
-                finalList[jail][netIndex] = maxCount
+                if maxCount > countLimit:
+                    finalList[jail][netIndex] = maxCount
+                else:
+                    if args.debug:
+                        print(f"Skip IPv4: {netIndex} (count {maxCount} below limit {countLimit})")
+            else:
+                if args.debug:
+                    print(f"Skip IPv4: {netIndex} (not a network)")
 
 if args.debug:
     print(f"Final list of networks to block per jail:")
-    pprint(finalList)
+    printdict(finalList)
 
 #
 # PART 4: call fail2ban
@@ -180,3 +202,4 @@ for jail in finalList:
         else:
             if args.verbose:
                 print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
+
