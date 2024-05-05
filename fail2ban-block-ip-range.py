@@ -12,6 +12,7 @@ from collections import defaultdict
 import os
 import argparse
 import re
+import sys
 from datetime import datetime
 
 file_default = '/var/log/fail2ban.log'
@@ -71,6 +72,10 @@ file = open(fail2ban_log_file, mode='r')
 
 fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).* fail2ban.filter.*\[[0-9]+\]:.*\[([^]]+)\] Found ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})")
 
+if sys.version_info<(3,7,0):
+    # fallback for Python < 3.7
+    fail2ban_datetime_pattern = re.compile("^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$")
+
 myjailip = defaultdict(lambda: defaultdict(int))
 mylist = defaultdict(lambda: defaultdict(int))
 finalList = defaultdict(lambda: defaultdict(int))
@@ -98,9 +103,15 @@ while True:
     line = file.readline()
     m = fail2ban_log_pattern.search(line)
     if m:
-        dt = datetime.fromisoformat(m.group(1))
         timedate = m.group(1)
-        jail = m. group(2)
+        if sys.version_info<(3,7,0):
+            t = fail2ban_datetime_pattern.search(timedate)
+            dt = datetime(int(t.group(1)), int(t.group(2)), int(t.group(3)), int(t.group(4)), int(t.group(5)), int(t.group(6)))
+        else:
+            # datetime.fromisoformat was added in Python 3.7
+            dt = datetime.fromisoformat(timedate)
+
+        jail = m.group(2)
         ip = m.group(3)
         dt_delta = int((dt_now - dt).total_seconds())
         if dt_delta > max_age_seconds:
