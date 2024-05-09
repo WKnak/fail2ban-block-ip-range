@@ -6,7 +6,6 @@
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
 from pprint import pprint
-from subprocess import run, DEVNULL
 from ipaddress import IPv4Network
 from collections import defaultdict
 import os
@@ -14,6 +13,10 @@ import argparse
 import re
 import sys
 from datetime import datetime
+if sys.version_info < (3,7,0):
+    from subprocess import run, PIPE
+else:
+    from subprocess import run
 
 file_default = '/var/log/fail2ban.log'
 maxage_default = '8h'
@@ -190,7 +193,12 @@ fail2ban_get = "fail2ban-client get {} banned {}"
 for jail in finalList:
     for ip in finalList[jail]:
         getban_command = fail2ban_get.format(jail, ip)
-        banned = run(getban_command, capture_output=True, text=True, shell=True)
+        if sys.version_info < (3,7,0):
+            # fallback for Python < 3.7
+            banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
+        else:
+            banned = run(getban_command, capture_output=True, text=True, shell=True)
+
         if banned.returncode != 0:
             print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
             continue
@@ -198,7 +206,12 @@ for jail in finalList:
         if banned.stdout.strip() == "0":
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
-                result = run(banIP_command, capture_output=True, text=True, shell=True)
+                if sys.version_info < (3,7,0):
+                    # fallback for Python < 3.7
+                    result = run(banIP_command, stdout=PIPE, universal_newlines=True, shell=True)
+                else:
+                    result = run(banIP_command, capture_output=True, text=True, shell=True)
+
                 if result.returncode != 0:
                     print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
                     continue
