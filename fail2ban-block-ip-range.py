@@ -75,9 +75,11 @@ file = open(fail2ban_log_file, mode='r')
 
 fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).* fail2ban.filter.*\[[0-9]+\]:.*\[([^]]+)\] Found ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})")
 
-if sys.version_info<(3,7,0):
+if sys.version_info < (3,7,0):
     # fallback for Python < 3.7
     fail2ban_datetime_pattern = re.compile("^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$")
+    if args.debug:
+        print(f"Fallback code for Python < 3.7 activated")
 
 myjailip = defaultdict(lambda: defaultdict(int))
 mylist = defaultdict(lambda: defaultdict(int))
