@@ -210,7 +210,7 @@ for jail in finalList:
             if not args.dryrun:
                 if sys.version_info < (3,7,0):
                     # fallback for Python < 3.7
-                    result = run(banIP_command, stdout=PIPE, universal_newlines=True, shell=True)
+                    result = run(banIP_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
                 else:
                     result = run(banIP_command, capture_output=True, text=True, shell=True)
 
