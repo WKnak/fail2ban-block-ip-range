@@ -35,12 +35,16 @@ parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
 parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
 parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
 parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
+parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
+parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
 
 args = parser.parse_args()
 
 fail2ban_log_file = args.file
 max_age = args.maxage
 countLimit = args.countlimit
+includeJail = args.include_jail
+excludeJail = args.exclude_jail
 
 # convert max_age into seconds
 age_pattern = re.compile("^(\d+)([smhdw])$")
@@ -126,7 +130,27 @@ while True:
             continue
 
         if args.debug:
-            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> STORE")
+            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> JAIL-CHECK")
+
+        if len(includeJail) > 0:
+            if jail in includeJail:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' included -> STORE")
+            else:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not included -> SKIP")
+                continue
+        elif len(excludeJail) > 0:
+            if jail in excludeJail:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' excluded -> SKIP")
+                continue
+            else:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not excluded -> STORE")
+        else:
+            if args.debug:
+                print(f"Found IPv4: {timedate} {dt_delta}s no jail in- or exclusions -> STORE")
 
         myjailip[jail][ip] += 1
 
