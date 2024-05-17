@@ -5,16 +5,16 @@
 # (P) & (C) 2021-2024 William Knak <williamknak@gmail.com>
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
-from pprint import pprint
-from ipaddress import IPv4Network
-from collections import defaultdict
-import os
 import argparse
+import os
 import re
 import sys
+from collections import defaultdict
 from datetime import datetime
+from ipaddress import IPv4Network
+
 if sys.version_info < (3,7,0):
-    from subprocess import run, PIPE
+    from subprocess import PIPE, run
 else:
     from subprocess import run
 
@@ -228,4 +228,3 @@ for jail in finalList:
         else:
             if args.verbose:
                 print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
-
