@@ -111,6 +111,7 @@ while True:
         timedate = m.group(1)
         if sys.version_info < (3, 7, 0):
             t = fail2ban_datetime_pattern.search(timedate)
+            assert t is not None
             dt = datetime(int(t.group(1)), int(t.group(2)), int(t.group(3)), int(t.group(4)), int(t.group(5)), int(t.group(6)))
         else:
             # datetime.fromisoformat was added in Python 3.7
