@@ -25,7 +25,7 @@ countlimit_default = 7
 parser = argparse.ArgumentParser(
     prog='fail2ban-block-ip-range.py',
     description='Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks',
-    epilog='Defaults: FILE=' + file_default + ' MAXAGE=' + maxage_default + ' COUNTLIMIT=' + str(countlimit_default)
+    epilog=f'Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={ str(countlimit_default)}'
 )
 
 parser.add_argument('-v', '--verbose'   , action='store_true')  # on/off flag
@@ -79,7 +79,7 @@ if sys.version_info < (3,7,0):
     # fallback for Python < 3.7
     fail2ban_datetime_pattern = re.compile("^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$")
     if args.debug:
-        print(f"Fallback code for Python < 3.7 activated")
+        print("Fallback code for Python < 3.7 activated")
 
 myjailip = defaultdict(lambda: defaultdict(int))
 mylist = defaultdict(lambda: defaultdict(int))
@@ -143,9 +143,9 @@ while True:
 file.close()
 
 if args.debug:
-    print(f"List per jail/ip:")
+    print("List per jail/ip:")
     printdict(myjailip)
-    print(f"List per jail/index:")
+    print("List per jail/index:")
     printdict(mylist)
 
 #
@@ -183,7 +183,7 @@ for jail in myjailip:
                     print(f"Skip IPv4: {netIndex} (not a network)")
 
 if args.debug:
-    print(f"Final list of networks to block per jail:")
+    print("Final list of networks to block per jail:")
     printdict(finalList)
 
 #
