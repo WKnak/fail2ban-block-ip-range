@@ -203,9 +203,7 @@ for jail in finalList:
 
         if banned.returncode != 0:
             print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
-            continue
-
-        if banned.stdout.strip() == "0":
+        elif banned.stdout.strip() == "0":
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
                 if sys.version_info < (3,7,0):
@@ -216,9 +214,7 @@ for jail in finalList:
 
                 if result.returncode != 0:
                     print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
-                    continue
-
-                if result.stdout.strip() == "1":
+                elif result.stdout.strip() == "1":
                     if not args.quiet:
                         print(f"jail '{jail}' successful ban aggregated IPv4 network: {ip}")
                 else:
