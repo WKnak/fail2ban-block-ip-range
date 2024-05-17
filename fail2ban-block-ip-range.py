@@ -13,28 +13,28 @@ from collections import defaultdict
 from datetime import datetime
 from ipaddress import IPv4Network
 
-if sys.version_info < (3,7,0):
+if sys.version_info < (3, 7, 0):
     from subprocess import PIPE, run
 else:
     from subprocess import run
 
-file_default = '/var/log/fail2ban.log'
-maxage_default = '8h'
+file_default = "/var/log/fail2ban.log"
+maxage_default = "8h"
 countlimit_default = 7
 
 parser = argparse.ArgumentParser(
-    prog='fail2ban-block-ip-range.py',
-    description='Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks',
-    epilog=f'Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={ str(countlimit_default)}'
+    prog="fail2ban-block-ip-range.py",
+    description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
+    epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
 )
 
-parser.add_argument('-v', '--verbose'   , action='store_true')  # on/off flag
-parser.add_argument('-q', '--quiet'     , action='store_true')  # on/off flag
-parser.add_argument('-d', '--debug'     , action='store_true')  # on/off flag
-parser.add_argument('-D', '--dryrun'    , action='store_true')  # on/off flag
-parser.add_argument('-l', '--countlimit', action='store', type=int, default=countlimit_default)
-parser.add_argument('-f', '--file'      , action='store', type=str, default=file_default)
-parser.add_argument('-a', '--maxage'    , action='store', type=str, default=maxage_default)
+parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
+parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
+parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
+parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
+parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
+parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
+parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
 
 args = parser.parse_args()
 
@@ -50,7 +50,7 @@ seconds_per_unit = {
     "m": 60,
     "h": 60 * 60,
     "d": 60 * 60 * 24,
-    "w": 60 * 60 * 24 * 7
+    "w": 60 * 60 * 24 * 7,
 }
 
 if m:
@@ -65,17 +65,17 @@ dt_now = datetime.now()
 
 if not os.path.isfile(fail2ban_log_file):
     print(f"File not found: {fail2ban_log_file}")
-    exit(1)        
+    exit(1)
 
 if args.debug:
     print(f"Logfile to analyze: {fail2ban_log_file}")
     print(f"Count limit: {countLimit}")
 
-file = open(fail2ban_log_file, mode='r')
+file = open(fail2ban_log_file, mode="r")
 
 fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).* fail2ban.filter.*\[[0-9]+\]:.*\[([^]]+)\] Found ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})")
 
-if sys.version_info < (3,7,0):
+if sys.version_info < (3, 7, 0):
     # fallback for Python < 3.7
     fail2ban_datetime_pattern = re.compile("^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$")
     if args.debug:
@@ -109,7 +109,7 @@ while True:
     m = fail2ban_log_pattern.search(line)
     if m:
         timedate = m.group(1)
-        if sys.version_info<(3,7,0):
+        if sys.version_info < (3, 7, 0):
             t = fail2ban_datetime_pattern.search(timedate)
             dt = datetime(int(t.group(1)), int(t.group(2)), int(t.group(3)), int(t.group(4)), int(t.group(5)), int(t.group(6)))
         else:
@@ -195,7 +195,7 @@ fail2ban_get = "fail2ban-client get {} banned {}"
 for jail in finalList:
     for ip in finalList[jail]:
         getban_command = fail2ban_get.format(jail, ip)
-        if sys.version_info < (3,7,0):
+        if sys.version_info < (3, 7, 0):
             # fallback for Python < 3.7
             banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
         else:
@@ -206,7 +206,7 @@ for jail in finalList:
         elif banned.stdout.strip() == "0":
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
-                if sys.version_info < (3,7,0):
+                if sys.version_info < (3, 7, 0):
                     # fallback for Python < 3.7
                     result = run(banIP_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
                 else:
