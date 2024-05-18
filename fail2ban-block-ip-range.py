@@ -5,42 +5,46 @@
 # (P) & (C) 2021-2024 William Knak <williamknak@gmail.com>
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
-from pprint import pprint
-from ipaddress import IPv4Network
-from collections import defaultdict
-import os
 import argparse
+import os
 import re
 import sys
+from collections import defaultdict
 from datetime import datetime
-if sys.version_info < (3,7,0):
-    from subprocess import run, PIPE
+from ipaddress import IPv4Network
+
+if sys.version_info < (3, 7, 0):
+    from subprocess import PIPE, run
 else:
     from subprocess import run
 
-file_default = '/var/log/fail2ban.log'
-maxage_default = '8h'
+file_default = "/var/log/fail2ban.log"
+maxage_default = "8h"
 countlimit_default = 7
 
 parser = argparse.ArgumentParser(
-    prog='fail2ban-block-ip-range.py',
-    description='Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks',
-    epilog='Defaults: FILE=' + file_default + ' MAXAGE=' + maxage_default + ' COUNTLIMIT=' + str(countlimit_default)
+    prog="fail2ban-block-ip-range.py",
+    description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
+    epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
 )
 
-parser.add_argument('-v', '--verbose'   , action='store_true')  # on/off flag
-parser.add_argument('-q', '--quiet'     , action='store_true')  # on/off flag
-parser.add_argument('-d', '--debug'     , action='store_true')  # on/off flag
-parser.add_argument('-D', '--dryrun'    , action='store_true')  # on/off flag
-parser.add_argument('-l', '--countlimit', action='store', type=int, default=countlimit_default)
-parser.add_argument('-f', '--file'      , action='store', type=str, default=file_default)
-parser.add_argument('-a', '--maxage'    , action='store', type=str, default=maxage_default)
+parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
+parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
+parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
+parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
+parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
+parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
+parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
+parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
+parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
 
 args = parser.parse_args()
 
 fail2ban_log_file = args.file
 max_age = args.maxage
 countLimit = args.countlimit
+includeJail = args.include_jail
+excludeJail = args.exclude_jail
 
 # convert max_age into seconds
 age_pattern = re.compile("^(\d+)([smhdw])$")
@@ -50,7 +54,7 @@ seconds_per_unit = {
     "m": 60,
     "h": 60 * 60,
     "d": 60 * 60 * 24,
-    "w": 60 * 60 * 24 * 7
+    "w": 60 * 60 * 24 * 7,
 }
 
 if m:
@@ -65,21 +69,21 @@ dt_now = datetime.now()
 
 if not os.path.isfile(fail2ban_log_file):
     print(f"File not found: {fail2ban_log_file}")
-    exit(1)        
+    exit(1)
 
 if args.debug:
     print(f"Logfile to analyze: {fail2ban_log_file}")
     print(f"Count limit: {countLimit}")
 
-file = open(fail2ban_log_file, mode='r')
+file = open(fail2ban_log_file, mode="r")
 
 fail2ban_log_pattern = re.compile("^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}).* fail2ban.filter.*\[[0-9]+\]:.*\[([^]]+)\] Found ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})")
 
-if sys.version_info < (3,7,0):
+if sys.version_info < (3, 7, 0):
     # fallback for Python < 3.7
     fail2ban_datetime_pattern = re.compile("^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$")
     if args.debug:
-        print(f"Fallback code for Python < 3.7 activated")
+        print("Fallback code for Python < 3.7 activated")
 
 myjailip = defaultdict(lambda: defaultdict(int))
 mylist = defaultdict(lambda: defaultdict(int))
@@ -109,8 +113,9 @@ while True:
     m = fail2ban_log_pattern.search(line)
     if m:
         timedate = m.group(1)
-        if sys.version_info<(3,7,0):
+        if sys.version_info < (3, 7, 0):
             t = fail2ban_datetime_pattern.search(timedate)
+            assert t is not None
             dt = datetime(int(t.group(1)), int(t.group(2)), int(t.group(3)), int(t.group(4)), int(t.group(5)), int(t.group(6)))
         else:
             # datetime.fromisoformat was added in Python 3.7
@@ -125,7 +130,27 @@ while True:
             continue
 
         if args.debug:
-            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> STORE")
+            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> JAIL-CHECK")
+
+        if len(includeJail) > 0:
+            if jail in includeJail:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' included -> STORE")
+            else:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not included -> SKIP")
+                continue
+        elif len(excludeJail) > 0:
+            if jail in excludeJail:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' excluded -> SKIP")
+                continue
+            else:
+                if args.debug:
+                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not excluded -> STORE")
+        else:
+            if args.debug:
+                print(f"Found IPv4: {timedate} {dt_delta}s no jail in- or exclusions -> STORE")
 
         myjailip[jail][ip] += 1
 
@@ -143,9 +168,9 @@ while True:
 file.close()
 
 if args.debug:
-    print(f"List per jail/ip:")
+    print("List per jail/ip:")
     printdict(myjailip)
-    print(f"List per jail/index:")
+    print("List per jail/index:")
     printdict(mylist)
 
 #
@@ -183,7 +208,7 @@ for jail in myjailip:
                     print(f"Skip IPv4: {netIndex} (not a network)")
 
 if args.debug:
-    print(f"Final list of networks to block per jail:")
+    print("Final list of networks to block per jail:")
     printdict(finalList)
 
 #
@@ -195,7 +220,7 @@ fail2ban_get = "fail2ban-client get {} banned {}"
 for jail in finalList:
     for ip in finalList[jail]:
         getban_command = fail2ban_get.format(jail, ip)
-        if sys.version_info < (3,7,0):
+        if sys.version_info < (3, 7, 0):
             # fallback for Python < 3.7
             banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
         else:
@@ -203,12 +228,10 @@ for jail in finalList:
 
         if banned.returncode != 0:
             print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
-            continue
-
-        if banned.stdout.strip() == "0":
+        elif banned.stdout.strip() == "0":
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
-                if sys.version_info < (3,7,0):
+                if sys.version_info < (3, 7, 0):
                     # fallback for Python < 3.7
                     result = run(banIP_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
                 else:
@@ -216,9 +239,7 @@ for jail in finalList:
 
                 if result.returncode != 0:
                     print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
-                    continue
-
-                if result.stdout.strip() == "1":
+                elif result.stdout.strip() == "1":
                     if not args.quiet:
                         print(f"jail '{jail}' successful ban aggregated IPv4 network: {ip}")
                 else:
@@ -228,4 +249,3 @@ for jail in finalList:
         else:
             if args.verbose:
                 print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
-
