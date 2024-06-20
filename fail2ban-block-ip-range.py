@@ -47,7 +47,7 @@ includeJail = args.include_jail
 excludeJail = args.exclude_jail
 
 # convert max_age into seconds
-age_pattern = re.compile("^(\d+)([smhdw])$")
+age_pattern = re.compile("^([0-9]+)([smhdw])$")
 m = age_pattern.match(max_age)
 seconds_per_unit = {
     "s": 1,
