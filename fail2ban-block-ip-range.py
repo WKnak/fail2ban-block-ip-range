@@ -215,11 +215,11 @@ if args.debug:
 # PART 4: call fail2ban
 #
 fail2ban_command = "fail2ban-client set {} banip {}"
-fail2ban_get = "fail2ban-client get {} banned {}"
+fail2ban_get = "fail2ban-client get {} banip ,"
 
 for jail in finalList:
     for ip in finalList[jail]:
-        getban_command = fail2ban_get.format(jail, ip)
+        getban_command = fail2ban_get.format(jail)
         if sys.version_info < (3, 7, 0):
             # fallback for Python < 3.7
             banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
@@ -230,7 +230,8 @@ for jail in finalList:
             print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
             continue
 
-        if banned.stdout.strip() == "0":
+        isBanned = ip in banned.stdout.strip()
+        if not isBanned:
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
                 if sys.version_info < (3, 7, 0):
