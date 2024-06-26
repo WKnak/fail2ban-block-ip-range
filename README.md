@@ -3,20 +3,50 @@ A python script that group IPs into network range, to block attacks from a netwo
 
 Please be carefull to not block youself!
 
+## Requirements
+
+### Python 3 (recommended 3.7+)
+
+- Check Python version by running `python3 -V` or `python -V`
+
+### fail2ban (recommended 0.11+ )
+- Check fail2ban version by running `fail2ban-client -V`
+  
 ## Installation
 
 ### Script
 
-- Copy script into directory `/usr/bin/`
-- Make it executable by `chmod a+x /usr/bin/fail2ban-block-ip-range.py`
+- Clone the source code to a local folder
 
-### Regular execution
+```
+cd /usr/local/src
+git clone https://github.com/WKnak/fail2ban-block-ip-range.git
+cd fail2ban-block-ip-range
+```
 
-#### By cron
+- Copy main python script into bin directory
+```
+cp fail2ban-block-ip-range.py /usr/bin
+```
+
+- Make it executable
+```
+chmod a+x /usr/bin/fail2ban-block-ip-range.py
+```
+
+### Manual execution/testing
+
+```
+/usr/bin/fail2ban-block-ip-range.py
+```
+
+### Schedule periodic execution
+
+#### Using cron
 
 ##### Alternative 1: extension of /etc/crontab
 
-Add following extension to `/etc/crontab`
+Add following extension to `/etc/crontab` using `crontab -e` command (check the proper user)
 
 `*/5 * * * * /usr/bin/fail2ban-block-ip-range.py`
 
@@ -39,6 +69,11 @@ Add following extension to `/etc/crontab`
 - Check journald with `journalctl -b 0 -u fail2ban-block-ip-range.timer`
 
 Note: output of the script to stdout/stderr will be logged to journald
+
+## Troubleshooting
+
+### Error: Invalid command (no get action or not yet implemented)
+Fail2Ban is too old, it does not know how to retrieve current status of a banned IP.
 
 ### SELinux
 
