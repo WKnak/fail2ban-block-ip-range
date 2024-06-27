@@ -18,14 +18,19 @@ if sys.version_info < (3, 7, 0):
 else:
     from subprocess import run
 
+
 class Fail2BanHelper:
+
+    CMD_IS_BANNED_NEW = "fail2ban-client get {} banned {}"
+    CMD_IS_BANNED_OLD = "fail2ban-client get {} banip ,"
+    CMD_BAN = "fail2ban-client set {} banip {}"
+
     def __init__(self):
         self.get_strategy = self._detect_banned_strategy()
 
 
     def ban(self, jail, ip):
-        fail2ban_ban_command = "fail2ban-client set {} banip {}"
-        ban_ip_command = fail2ban_ban_command.format(jail, ip)
+        ban_ip_command = self.CMD_BAN.format(jail, ip)
 
         result = self._run_f2b_command(ban_ip_command)
         return result
@@ -47,17 +52,22 @@ class Fail2BanHelper:
 
 
     def _check_is_already_banned_old(self, jail, ip):
-        fail2ban_get_old_command = "fail2ban-client get {} banip ,"
-        getban_command = fail2ban_get_old_command.format(jail, ip)
+        getban_command = self.CMD_IS_BANNED_OLD.format(jail, ip)
         result = self._run_f2b_command(getban_command)
+        if result.returncode != 0:
+            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {result.stderr}")
+            return False
         is_banned = ip in result.stdout.strip()
         return is_banned
 
     def _check_is_already_banned_new(self, jail, ip):
-        fail2ban_get_new_command = "fail2ban-client get {} banned {}"
-        getban_command = fail2ban_get_new_command.format(jail, ip)
+        getban_command = self.CMD_IS_BANNED_NEW.format(jail, ip)
         result = self._run_f2b_command(getban_command)
-        is_banned == result.stdout.strip() == "1"
+        if result.returncode != 0:
+            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {result.stderr}")
+            return False
+
+        is_banned = result.stdout.strip() == "1"
         return is_banned
 
     def _run_f2b_command(self, getban_command):
@@ -67,19 +77,18 @@ class Fail2BanHelper:
         else:
             result = run(getban_command, capture_output=True, text=True, shell=True)
 
-        if result.returncode != 0:
-            raise Exception(f"Unable to run Fail2Ban command: {result.stderr}")
-
         return result
 
     def _detect_banned_strategy(self):
+        getban_command = self.CMD_IS_BANNED_NEW.format("sshd", "192.168.111.111")
+        result = self._run_f2b_command(getban_command)
 
-        try:
-            _check_is_already_banned_new("sshd", "192.168.111.111")
-        except:
-            return "old"
-        else:
-            return "new"
+        if result.returncode != 0:
+            command_not_implemented_error = "no get action or not yet implemented" in result.stderr
+            if command_not_implemented_error:
+                return "old"
+
+        return "new"
 
 class ArgumentsHelper():
     def __init__(self):
