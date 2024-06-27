@@ -19,6 +19,7 @@ if sys.version_info < (3, 7, 0):
 else:
     from subprocess import run
 
+
 class Preferences:
 
     CONFIG_FILE = "/etc/fail2ban/fail2ban-block-ip-range.conf"
@@ -59,28 +60,119 @@ class Preferences:
         if not os.path.isfile(self.CONFIG_FILE):
             self.save_config_file()
 
+
+class Fail2BanHelper:
+
+    CMD_IS_BANNED_NEW = "fail2ban-client get {} banned {}"
+    CMD_IS_BANNED_OLD = "fail2ban-client get {} banip ,"
+    CMD_BAN = "fail2ban-client set {} banip {}"
+
+    def __init__(self):
+        self.get_strategy = self._detect_banned_strategy()
+
+
+    def ban(self, jail, ip):
+        ban_ip_command = self.CMD_BAN.format(jail, ip)
+
+        result = self._run_f2b_command(ban_ip_command)
+        return result
+
+
+    def check_is_already_banned(self, jail, ip):
+
+        if self.get_strategy == "old":
+            return self._check_is_already_banned_old(jail, ip)
+
+        return self._check_is_already_banned_new(jail, ip)
+
+
+    def print_info(self):
+        if self.get_strategy == "old":
+            print("Using Fail2Ban Old compatibility Get Ban command - uses more CPU")
+        else:
+            print("Using Fail2Ban New Get Banned command")
+
+
+    def _check_is_already_banned_old(self, jail, ip):
+        getban_command = self.CMD_IS_BANNED_OLD.format(jail, ip)
+        result = self._run_f2b_command(getban_command)
+        if result.returncode != 0:
+            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {result.stderr}")
+            return False
+        is_banned = ip in result.stdout.strip()
+        return is_banned
+
+    def _check_is_already_banned_new(self, jail, ip):
+        getban_command = self.CMD_IS_BANNED_NEW.format(jail, ip)
+        result = self._run_f2b_command(getban_command)
+        if result.returncode != 0:
+            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {result.stderr}")
+            return False
+
+        is_banned = result.stdout.strip() == "1"
+        return is_banned
+
+    def _run_f2b_command(self, getban_command):
+        if sys.version_info < (3, 7, 0):
+            # fallback for Python < 3.7
+            result = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
+        else:
+            result = run(getban_command, capture_output=True, text=True, shell=True)
+
+        return result
+
+    def _detect_banned_strategy(self):
+        getban_command = self.CMD_IS_BANNED_NEW.format("sshd", "192.168.111.111")
+        result = self._run_f2b_command(getban_command)
+
+        if result.returncode != 0:
+            command_not_implemented_error = "no get action or not yet implemented" in result.stderr
+            if command_not_implemented_error:
+                return "old"
+
+        return "new"
+
+class ArgumentsHelper():
+    def __init__(self):
+        self.parser = argparse.ArgumentParser(
+                prog="fail2ban-block-ip-range.py",
+                description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
+                epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
+                )
+        self.parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
+        self.parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
+        self.parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
+        self.parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
+        self.parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
+        self.parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
+        self.parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
+        self.parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
+        self.parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
+    
+    def get_args(self):
+        return self.parser.parse_args()
+
+
+file_default = "/var/log/fail2ban.log"
+maxage_default = "8h"
+countlimit_default = 7
+
 config = Preferences()
 
-parser = argparse.ArgumentParser(
-    prog="fail2ban-block-ip-range.py",
-    description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
-    epilog=f"Defaults: FILE={config.fail2ban_file} MAXAGE={config.max_age} COUNTLIMIT={str(config.count_limit)}",
-)
+args = ArgumentsHelper().get_args()
 
-parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
-parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
-parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
-parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
-parser.add_argument("-l", "--countlimit", action="store", type=int, default=config.count_limit)
-parser.add_argument("-f", "--file"      , action="store", type=str, default=config.fail2ban_file)
-parser.add_argument("-a", "--maxage"    , action="store", type=str, default=config.max_age)
-parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
-parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
+helper = Fail2BanHelper()
+if args.debug:
+    helper.print_info()
 
-args = parser.parse_args()
+
+
 
 if args.debug:
     config.print_preferences()
+
+
+
 
 
 fail2ban_log_file = args.file
@@ -257,30 +349,14 @@ if args.debug:
 #
 # PART 4: call fail2ban
 #
-fail2ban_command = "fail2ban-client set {} banip {}"
-fail2ban_get = "fail2ban-client get {} banned {}"
 
 for jail in finalList:
     for ip in finalList[jail]:
-        getban_command = fail2ban_get.format(jail, ip)
-        if sys.version_info < (3, 7, 0):
-            # fallback for Python < 3.7
-            banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
-        else:
-            banned = run(getban_command, capture_output=True, text=True, shell=True)
 
-        if banned.returncode != 0:
-            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
-            continue
-
-        if banned.stdout.strip() == "0":
-            banIP_command = fail2ban_command.format(jail, ip)
+        is_banned = helper.check_is_already_banned(jail, ip) 
+        if not is_banned:
             if not args.dryrun:
-                if sys.version_info < (3, 7, 0):
-                    # fallback for Python < 3.7
-                    result = run(banIP_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
-                else:
-                    result = run(banIP_command, capture_output=True, text=True, shell=True)
+                result = helper.ban(jail, ip)
 
                 if result.returncode != 0:
                     print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
@@ -296,3 +372,4 @@ for jail in finalList:
         else:
             if args.verbose:
                 print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
+
