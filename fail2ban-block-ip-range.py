@@ -6,6 +6,7 @@
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -18,27 +19,69 @@ if sys.version_info < (3, 7, 0):
 else:
     from subprocess import run
 
-file_default = "/var/log/fail2ban.log"
-maxage_default = "8h"
-countlimit_default = 7
+class Preferences:
+
+    CONFIG_FILE = "/etc/fail2ban/fail2ban-block-ip-range.conf"
+
+    def __init__(self):
+        ## tip: don't change here, change in the conf file
+        self.default = {
+                "fail2ban_file":  "/var/log/fail2ban.log",
+                "max_age":  "8h",
+                "count_limit": 7
+        }
+
+        self._create_config_if_not_exists()
+        self.read_config_file()
+
+    def print_preferences(self):
+        print(self.default)
+
+    def __getattr__(self, attr_name):
+        return self.default[attr_name]
+
+    def read_config_file(self):
+        try:
+            with open(self.CONFIG_FILE) as config_file:
+                self.default = json.loads(config_file.read())
+        except Exception as e:
+            print(f"Error was detected while reading {self.CONFIG_FILE}: {str(e)}. Hard coded values will be applied")
+
+    def save_config_file(self):
+        try:
+            # conf_items = {k: v for k, v in vars(self).items() if isinstance(v, (int, float, str, list, dict))}
+            with open(self.CONFIG_FILE, "w") as config_file:
+                json.dump(self.default, config_file, sort_keys=False, indent=2)
+        except Exception as e:
+            print(f"Error was detected while saving {self.CONFIG_FILE}: {str(e)}")
+
+    def _create_config_if_not_exists(self):
+        if not os.path.isfile(self.CONFIG_FILE):
+            self.save_config_file()
+
+config = Preferences()
 
 parser = argparse.ArgumentParser(
     prog="fail2ban-block-ip-range.py",
     description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
-    epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
+    epilog=f"Defaults: FILE={config.fail2ban_file} MAXAGE={config.max_age} COUNTLIMIT={str(config.count_limit)}",
 )
 
 parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
 parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
 parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
 parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
-parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
-parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
-parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
+parser.add_argument("-l", "--countlimit", action="store", type=int, default=config.count_limit)
+parser.add_argument("-f", "--file"      , action="store", type=str, default=config.fail2ban_file)
+parser.add_argument("-a", "--maxage"    , action="store", type=str, default=config.max_age)
 parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
 parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
 
 args = parser.parse_args()
+
+if args.debug:
+    config.print_preferences()
+
 
 fail2ban_log_file = args.file
 max_age = args.maxage
