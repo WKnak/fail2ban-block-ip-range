@@ -68,7 +68,7 @@ class Fail2BanHelper:
             result = run(getban_command, capture_output=True, text=True, shell=True)
 
         if result.returncode != 0:
-            raise Exception(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
+            raise Exception(f"Unable to run Fail2Ban command: {result.stderr}")
 
         return result
 
