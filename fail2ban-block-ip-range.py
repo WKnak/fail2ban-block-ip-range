@@ -166,14 +166,8 @@ if args.debug:
     helper.print_info()
 
 
-
-
 if args.debug:
     config.print_preferences()
-
-
-
-
 
 fail2ban_log_file = args.file
 max_age = args.maxage
