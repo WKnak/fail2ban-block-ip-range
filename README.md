@@ -1,7 +1,16 @@
 # fail2ban block ip/network range (ipv4 only)
 A python script that group IPs into network range, to block attacks from a network range address, from CIDR /23 up to /31.
 
-Please be carefull to not block youself!
+📛 Please be carefull to not block youself!
+
+---
+You may also like this project: `fail2ban-netstat-synrecv-flood`
+
+Fail2Ban netstat SYN_RECV Flood attack CIDR prevention. This fail2ban filter/jail/script can work toghether with `fail2ban-block-ip-range`
+
+https://github.com/WKnak/fail2ban-netstat-synrecv-flood
+
+---
 
 ## Requirements
 
