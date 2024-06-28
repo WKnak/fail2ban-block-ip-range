@@ -6,6 +6,7 @@
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -18,27 +19,163 @@ if sys.version_info < (3, 7, 0):
 else:
     from subprocess import run
 
+
+class Preferences:
+
+    CONFIG_FILE = "/etc/fail2ban/fail2ban-block-ip-range.conf"
+
+    def __init__(self):
+        ## tip: don't change here, change in the conf file
+        self.default = {
+                "fail2ban_file":  "/var/log/fail2ban.log",
+                "max_age":  "8h",
+                "count_limit": 7,
+                "max_cidr": 22
+        }
+
+        self._create_config_if_not_exists()
+        self.read_config_file()
+        self._validate()
+
+    def print_preferences(self):
+        print(self.default)
+
+    def __getattr__(self, attr_name):
+        return self.default[attr_name]
+
+    def read_config_file(self):
+        try:
+            with open(self.CONFIG_FILE) as config_file:
+                self.default = json.loads(config_file.read())
+        except Exception as e:
+            print("Error was detected while reading %s: %s. Hard coded values will be applied" % (self.CONFIG_FILE, str(e)))
+
+    def save_config_file(self):
+        try:
+            # conf_items = {k: v for k, v in vars(self).items() if isinstance(v, (int, float, str, list, dict))}
+            with open(self.CONFIG_FILE, "w") as config_file:
+                json.dump(self.default, config_file, sort_keys=False, indent=2)
+        except Exception as e:
+            print("Error was detected while saving %s: %s" % (self.CONFIG_FILE, str(e)))
+
+    def _create_config_if_not_exists(self):
+        if not os.path.isfile(self.CONFIG_FILE):
+            self.save_config_file()
+
+    def _validate(self):
+        if self.max_cidr < 18:
+            raise Exception("CIDR is too wide and can block too much network addresses. Minimum is CIDR /18 to CIDR /30.")
+
+        if self.max_cidr > 30:
+            raise Exception("CIDR is too short. Maximum range is CIDR /30 and minimum is CIDR /18.");
+
+class Fail2BanHelper:
+
+    CMD_IS_BANNED_NEW = "fail2ban-client get {} banned {}"
+    CMD_IS_BANNED_OLD = "fail2ban-client get {} banip ,"
+    CMD_BAN = "fail2ban-client set {} banip {}"
+
+    def __init__(self):
+        self.get_strategy = self._detect_banned_strategy()
+
+
+    def ban(self, jail, ip):
+        ban_ip_command = self.CMD_BAN.format(jail, ip)
+
+        result = self._run_f2b_command(ban_ip_command)
+        return result
+
+
+    def check_is_already_banned(self, jail, ip):
+
+        if self.get_strategy == "old":
+            return self._check_is_already_banned_old(jail, ip)
+
+        return self._check_is_already_banned_new(jail, ip)
+
+
+    def print_info(self):
+        if self.get_strategy == "old":
+            print("Using Fail2Ban Old compatibility Get Ban command - uses more CPU")
+        else:
+            print("Using Fail2Ban New Get Banned command")
+
+
+    def _check_is_already_banned_old(self, jail, ip):
+        getban_command = self.CMD_IS_BANNED_OLD.format(jail, ip)
+        result = self._run_f2b_command(getban_command)
+        if result.returncode != 0:
+            print("Unable to retrieve current status for jail '%s' %s: %s" % (jail, ip, result.stderr))
+            return False
+        is_banned = ip in result.stdout.strip()
+        return is_banned
+
+    def _check_is_already_banned_new(self, jail, ip):
+        getban_command = self.CMD_IS_BANNED_NEW.format(jail, ip)
+        result = self._run_f2b_command(getban_command)
+        if result.returncode != 0:
+            print("Unable to retrieve current status for jail '%s' %s: %s" % (jail, ip, result.stderr)) 
+            return False
+
+        is_banned = result.stdout.strip() == "1"
+        return is_banned
+
+    def _run_f2b_command(self, getban_command):
+        if sys.version_info < (3, 7, 0):
+            # fallback for Python < 3.7
+            result = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
+        else:
+            result = run(getban_command, capture_output=True, text=True, shell=True)
+
+        return result
+
+    def _detect_banned_strategy(self):
+        getban_command = self.CMD_IS_BANNED_NEW.format("sshd", "192.168.111.111")
+        result = self._run_f2b_command(getban_command)
+
+        if result.returncode != 0:
+            command_not_implemented_error = "no get action or not yet implemented" in result.stderr
+            if command_not_implemented_error:
+                return "old"
+
+        return "new"
+
+class ArgumentsHelper():
+    def __init__(self):
+        self.parser = argparse.ArgumentParser(
+                prog="fail2ban-block-ip-range.py",
+                description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
+                epilog="Defaults: FILE=%s MAXAGE=%s COUNTLIMIT=%s" % (file_default, maxage_default, str(countlimit_default)),
+                )
+        self.parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
+        self.parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
+        self.parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
+        self.parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
+        self.parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
+        self.parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
+        self.parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
+        self.parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
+        self.parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
+    
+    def get_args(self):
+        return self.parser.parse_args()
+
+
 file_default = "/var/log/fail2ban.log"
 maxage_default = "8h"
 countlimit_default = 7
 
-parser = argparse.ArgumentParser(
-    prog="fail2ban-block-ip-range.py",
-    description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
-    epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
-)
+config = Preferences()
 
-parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
-parser.add_argument("-q", "--quiet"     , action="store_true")  # on/off flag
-parser.add_argument("-d", "--debug"     , action="store_true")  # on/off flag
-parser.add_argument("-D", "--dryrun"    , action="store_true")  # on/off flag
-parser.add_argument("-l", "--countlimit", action="store", type=int, default=countlimit_default)
-parser.add_argument("-f", "--file"      , action="store", type=str, default=file_default)
-parser.add_argument("-a", "--maxage"    , action="store", type=str, default=maxage_default)
-parser.add_argument("-i", "--include_jail", action="append", type=str, default=[], help="Jail inclusions can be used multile times. Inclusions override the default 'all'.")
-parser.add_argument("-x", "--exclude_jail", action="append", type=str, default=[], help="Jail exclusions can be used multile times. Excluding a jail that is also included is not supported.")
+args = ArgumentsHelper().get_args()
 
-args = parser.parse_args()
+helper = Fail2BanHelper()
+if args.debug:
+    helper.print_info()
+
+
+if args.debug:
+    config.print_preferences()
 
 fail2ban_log_file = args.file
 max_age = args.maxage
@@ -60,20 +197,20 @@ seconds_per_unit = {
 if m:
     max_age_seconds = int(m.group(1)) * seconds_per_unit[m.group(2)]
     if args.debug:
-        print(f"Filter entries older {max_age} = {max_age_seconds}s")
+        print("Filter entries older %s = %ss" % (max_age, max_age_seconds))
 else:
-    print(f"MAXAGE not valid: {max_age}")
+    print("MAXAGE not valid: %s" % max_age)
     exit(1)
 
 dt_now = datetime.now()
 
 if not os.path.isfile(fail2ban_log_file):
-    print(f"File not found: {fail2ban_log_file}")
+    print("File not found: %s" % fail2ban_log_file)
     exit(1)
 
 if args.debug:
-    print(f"Logfile to analyze: {fail2ban_log_file}")
-    print(f"Count limit: {countLimit}")
+    print("Logfile to analyze: %s" % fail2ban_log_file)
+    print("Count limit: %s" % countLimit)
 
 file = open(fail2ban_log_file, mode="r")
 
@@ -93,10 +230,10 @@ finalList = defaultdict(lambda: defaultdict(int))
 ##### Functions
 def printdict(var):
     for jail in var:
-        print(f" jail '{jail}'")
+        print(" jail '%s'" % jail)
         for ip in var[jail]:
             count = var[jail][ip]
-            print(f"  {ip}: {count}")
+            print("  %s: %s" % (ip, count))
 
 
 # PART 1: filtering messages and IPs
@@ -126,36 +263,36 @@ while True:
         dt_delta = int((dt_now - dt).total_seconds())
         if dt_delta > max_age_seconds:
             if args.debug:
-                print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> SKIP")
+                print("Found IPv4: %s %ss jail '%s' %s -> SKIP" % (timedate, dt_delta, jail, ip)) 
             continue
 
         if args.debug:
-            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> JAIL-CHECK")
+            print("Found IPv4: %s %ss jail '%s' %s -> JAIL-CHECK" % (timedate, dt_delta, jail, ip))
 
         if len(includeJail) > 0:
             if jail in includeJail:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' included -> STORE")
+                    print("Found IPv4: %s %ss jail '%s' included -> STORE" % (timedate, dt_delta, jail))
             else:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not included -> SKIP")
+                    print("Found IPv4: %s %ss jail '%s' not included -> SKIP" % (timedate, dt_delta, jail))
                 continue
         elif len(excludeJail) > 0:
             if jail in excludeJail:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' excluded -> SKIP")
+                    print("Found IPv4: %s %ss jail '%s' excluded -> SKIP" % (timedate, dt_delta, jail))
                 continue
             else:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not excluded -> STORE")
+                    print("Found IPv4: %s %ss jail '%s' not excluded -> STORE" % (timedate, dt_delta, jail))
         else:
             if args.debug:
-                print(f"Found IPv4: {timedate} {dt_delta}s no jail in- or exclusions -> STORE")
+                print("Found IPv4: %s %ss no jail in- or exclusions -> STORE" % (timedate,dt_delta))
 
         myjailip[jail][ip] += 1
 
-        # 2.2) iterate from cidr/32 down to 23 (descending)
-        for cidr in range(32, 23, -1):
+        # 2.2) iterate from cidr/32 down to 23 (config.max_cidr) (descending)
+        for cidr in range(32, config.max_cidr-1, -1):
             ipnet = IPv4Network(ip + "/" + str(cidr), False)
             index = str(ipnet.network_address) + "/" + str(cidr)
 
@@ -182,7 +319,7 @@ for jail in myjailip:
         nextIndex = False
 
         # 3.2 iterate CIDR (now in ascending order)
-        for cidr in range(22, 33):
+        for cidr in range(config.max_cidr, 32+1):
             ipnet = IPv4Network(ip + "/" + str(cidr), False)
             index = str(ipnet.network_address) + "/" + str(cidr)
             curCount = mylist[jail][index]
@@ -202,10 +339,10 @@ for jail in myjailip:
                     finalList[jail][netIndex] = maxCount
                 else:
                     if args.debug:
-                        print(f"Skip IPv4: {netIndex} (count {maxCount} below limit {countLimit})")
+                        print("Skip IPv4: %s (count %s below limit %s)" % (netIndex, maxCount, countLimit))
             else:
                 if args.debug:
-                    print(f"Skip IPv4: {netIndex} (not a network)")
+                    print("Skip IPv4: %s (not a network)" % netIndex)
 
 if args.debug:
     print("Final list of networks to block per jail:")
@@ -214,42 +351,31 @@ if args.debug:
 #
 # PART 4: call fail2ban
 #
-fail2ban_command = "fail2ban-client set {} banip {}"
-fail2ban_get = "fail2ban-client get {} banned {}"
 
 for jail in finalList:
     for ip in finalList[jail]:
-        getban_command = fail2ban_get.format(jail, ip)
-        if sys.version_info < (3, 7, 0):
-            # fallback for Python < 3.7
-            banned = run(getban_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
-        else:
-            banned = run(getban_command, capture_output=True, text=True, shell=True)
+        is_banned = False
 
-        if banned.returncode != 0:
-            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
-            continue
+        #if not args.dryrun:
+        is_banned = helper.check_is_already_banned(jail, ip) 
 
-        if banned.stdout.strip() == "0":
-            banIP_command = fail2ban_command.format(jail, ip)
+        if not is_banned:
             if not args.dryrun:
-                if sys.version_info < (3, 7, 0):
-                    # fallback for Python < 3.7
-                    result = run(banIP_command, stdout=PIPE, stderr=PIPE, universal_newlines=True, shell=True)
-                else:
-                    result = run(banIP_command, capture_output=True, text=True, shell=True)
+                result = helper.ban(jail, ip)
 
                 if result.returncode != 0:
-                    print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
+                    print("Unable to ban for jail '%s' %s: %s" % (jail, ip, result.stderr))
                     continue
 
-                if result.stdout.strip() == "1":
+                ban_succeeded = (result.stdout.strip() == "1") or (result.stdout.strip() == ip.strip())
+                if ban_succeeded: 
                     if not args.quiet:
-                        print(f"jail '{jail}' successful ban aggregated IPv4 network: {ip}")
+                        print("jail '%s' successful ban aggregated IPv4 network: %s" % (jail, ip))
                 else:
-                    print(f"jail '{jail}' unsuccessful try to ban aggregated IPv4 network: {ip} (result: {result.stdout.strip()})")
+                    print("jail '%s' unsuccessful try to ban aggregated IPv4 network: %s (result: %s)" % (jail, ip, result.stdout.strip()))
             else:
-                print(f"jail '{jail}' would ban aggregated IPv4 network: {ip} (dry-run)")
+                print("jail '%s' would ban aggregated IPv4 network: %s (dry-run)" % (jail, ip))
         else:
             if args.verbose:
-                print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
+                print("jail '%s' aggregated IPv4 network already banned: %s" % (jail, ip))
+
