@@ -29,11 +29,13 @@ class Preferences:
         self.default = {
                 "fail2ban_file":  "/var/log/fail2ban.log",
                 "max_age":  "8h",
-                "count_limit": 7
+                "count_limit": 7,
+                "max_cidr": 22
         }
 
         self._create_config_if_not_exists()
         self.read_config_file()
+        self._validate()
 
     def print_preferences(self):
         print(self.default)
@@ -60,6 +62,12 @@ class Preferences:
         if not os.path.isfile(self.CONFIG_FILE):
             self.save_config_file()
 
+    def _validate(self):
+        if self.max_cidr < 18:
+            raise Exception("CIDR is too wide and can block too much network addresses. Minimum is CIDR /18 to CIDR /30.")
+
+        if self.max_cidr > 30:
+            raise Exception("CIDR is too short. Maximum range is CIDR /30 and minimum is CIDR /18.");
 
 class Fail2BanHelper:
 
@@ -283,8 +291,8 @@ while True:
 
         myjailip[jail][ip] += 1
 
-        # 2.2) iterate from cidr/32 down to 23 (descending)
-        for cidr in range(32, 23, -1):
+        # 2.2) iterate from cidr/32 down to 23 (config.max_cidr) (descending)
+        for cidr in range(32, config.max_cidr-1, -1):
             ipnet = IPv4Network(ip + "/" + str(cidr), False)
             index = str(ipnet.network_address) + "/" + str(cidr)
 
@@ -311,7 +319,7 @@ for jail in myjailip:
         nextIndex = False
 
         # 3.2 iterate CIDR (now in ascending order)
-        for cidr in range(22, 33):
+        for cidr in range(config.max_cidr, 32+1):
             ipnet = IPv4Network(ip + "/" + str(cidr), False)
             index = str(ipnet.network_address) + "/" + str(cidr)
             curCount = mylist[jail][index]
@@ -346,8 +354,11 @@ if args.debug:
 
 for jail in finalList:
     for ip in finalList[jail]:
+        is_banned = False
 
+        #if not args.dryrun:
         is_banned = helper.check_is_already_banned(jail, ip) 
+
         if not is_banned:
             if not args.dryrun:
                 result = helper.ban(jail, ip)
