@@ -90,6 +90,20 @@ Active SELinux can prevent the script from being executed by cron/systemd!
 
 Solution: toggle SELinux to run in permissive mode and create from all the logged events then a policy extension.
 
+### Error: You must add 'flags interval' to your set declaration if you want to add prefix elements
+
+The default configuration of fail2ban in Ubuntu uses nftables. To enable prefixes, you need to edit `/etc/fail2ban/action.d/nftables.conf` and change this line:
+
+```
+_nft_add_set = <nftables> add set <table_family> <table> <addr_set> \{ type <addr_type>\; \}
+
+>>> BECOMES >>>
+
+_nft_add_set = <nftables> add set <table_family> <table> <addr_set> \{ type <addr_type>\; flags interval\; auto-merge\; \}
+```
+
+Then restart `fail2ban` to delete and recreate the address sets.
+
 ## Example:
 
 Count and IPs found at last 1k lines of fail2ban.log
