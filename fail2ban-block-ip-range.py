@@ -227,7 +227,7 @@ for jail in finalList:
             banned = run(getban_command, capture_output=True, text=True, shell=True)
 
         if banned.returncode != 0:
-            print(f"Unable to retrieve current status for jail '{jail}' {ip}: {banned.stderr}")
+            print("Unable to retrieve current status for jail '{}' {}: {}".format(jail, ip, banned.stderr))
             continue
 
         if banned.stdout.strip() == "0":
@@ -240,16 +240,16 @@ for jail in finalList:
                     result = run(banIP_command, capture_output=True, text=True, shell=True)
 
                 if result.returncode != 0:
-                    print(f"Unable to ban for jail '{jail}' {ip}: {result.stderr}")
+                    print("Unable to ban for jail '{}' {}: {}".format(jail, ip, result.stderr))
                     continue
 
                 if result.stdout.strip() == "1":
                     if not args.quiet:
-                        print(f"jail '{jail}' successful ban aggregated IPv4 network: {ip}")
+                        print("jail '{}' successful ban aggregated IPv4 network: {}".format(jail, ip))
                 else:
-                    print(f"jail '{jail}' unsuccessful try to ban aggregated IPv4 network: {ip} (result: {result.stdout.strip()})")
+                    print("jail '{}' unsuccessful try to ban aggregated IPv4 network: {} (result: {})".format(jail, ip, result.stdout.strip()))
             else:
-                print(f"jail '{jail}' would ban aggregated IPv4 network: {ip} (dry-run)")
+                print("jail '{}' would ban aggregated IPv4 network: {} (dry-run)".format(jail, ip))
         else:
             if args.verbose:
-                print(f"jail '{jail}' aggregated IPv4 network already banned: {ip}")
+                print("jail '{}' aggregated IPv4 network already banned: {}".format(jail, ip))
