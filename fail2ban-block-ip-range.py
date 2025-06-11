@@ -25,7 +25,7 @@ countlimit_default = 7
 parser = argparse.ArgumentParser(
     prog="fail2ban-block-ip-range.py",
     description="Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks",
-    epilog=f"Defaults: FILE={file_default} MAXAGE={maxage_default} COUNTLIMIT={str(countlimit_default)}",
+    epilog="Defaults: FILE={} MAXAGE={} COUNTLIMIT={}".format(file_default, maxage_default, str(countlimit_default)),
 )
 
 parser.add_argument("-v", "--verbose"   , action="store_true")  # on/off flag
@@ -68,12 +68,12 @@ else:
 dt_now = datetime.now()
 
 if not os.path.isfile(fail2ban_log_file):
-    print(f"File not found: {fail2ban_log_file}")
+    print("File not found: {}".format(fail2ban_log_file))
     exit(1)
 
 if args.debug:
-    print(f"Logfile to analyze: {fail2ban_log_file}")
-    print(f"Count limit: {countLimit}")
+    print("Logfile to analyze: {}".format(fail2ban_log_file))
+    print("Count limit: {}".format(countLimit))
 
 file = open(fail2ban_log_file, mode="r")
 
@@ -93,10 +93,10 @@ finalList = defaultdict(lambda: defaultdict(int))
 ##### Functions
 def printdict(var):
     for jail in var:
-        print(f" jail '{jail}'")
+        print(" jail '{}'".format(jail))
         for ip in var[jail]:
             count = var[jail][ip]
-            print(f"  {ip}: {count}")
+            print("  {}: {}".format(ip, count))
 
 
 # PART 1: filtering messages and IPs
@@ -126,31 +126,31 @@ while True:
         dt_delta = int((dt_now - dt).total_seconds())
         if dt_delta > max_age_seconds:
             if args.debug:
-                print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> SKIP")
+                print("Found IPv4: {} {}s jail '{}' {} -> SKIP".format(timedate, dt_delta, jail, ip))
             continue
 
         if args.debug:
-            print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' {ip} -> JAIL-CHECK")
+            print("Found IPv4: {} {}s jail '{}' {} -> JAIL-CHECK".format(timedate, dt_delta, jail, ip))
 
         if len(includeJail) > 0:
             if jail in includeJail:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' included -> STORE")
+                    print("Found IPv4: {} {}s jail '{}' included -> STORE".format(timedate, dt_delta, jail))
             else:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not included -> SKIP")
+                    print("Found IPv4: {} {}s jail '{}' not included -> SKIP".format(timedate, dt_delta, jail))
                 continue
         elif len(excludeJail) > 0:
             if jail in excludeJail:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' excluded -> SKIP")
+                    print("Found IPv4: {} {}s jail '{}' excluded -> SKIP".format(timedate, dt_delta, jail))
                 continue
             else:
                 if args.debug:
-                    print(f"Found IPv4: {timedate} {dt_delta}s jail '{jail}' not excluded -> STORE")
+                    print("Found IPv4: {} {}s jail '{}' not excluded -> STORE".format(timedate, dt_delta, jail))
         else:
             if args.debug:
-                print(f"Found IPv4: {timedate} {dt_delta}s no jail in- or exclusions -> STORE")
+                print("Found IPv4: {} {}s no jail in- or exclusions -> STORE".format(timedate, dt_delta))
 
         myjailip[jail][ip] += 1
 
