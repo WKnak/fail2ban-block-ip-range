@@ -2,6 +2,8 @@
 #
 # Scan fail2ban log and aggregate single banned IPv4 addresses into banned networks
 #
+# Source: https://github.com/WKnak/fail2ban-block-ip-range
+#
 # (P) & (C) 2021-2024 William Knak <williamknak@gmail.com>
 # (P) & (C) 2024-2024 Peter Bieringer <pb@bieringer.de>
 
@@ -228,9 +230,9 @@ for jail in finalList:
 
         if banned.returncode != 0:
             print("Unable to retrieve current status for jail '{}' {}: {}".format(jail, ip, banned.stderr))
-            continue
+            # continue ## old versions of fail2ban don't have get status for jail
 
-        if banned.stdout.strip() == "0":
+        if banned.returncode != 0 or ((banned.returncode == 0) and (banned.stdout.strip() == "0")):
             banIP_command = fail2ban_command.format(jail, ip)
             if not args.dryrun:
                 if sys.version_info < (3, 7, 0):
